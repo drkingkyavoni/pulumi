@@ -1,0 +1,8 @@
+config:
+  venv:backend_port: "3000"
+  venv:database: cart
+  venv:frontend_port: "3001"
+  venv:mongo_host: mongodb://mongo:27017
+  venv:mongo_port: "27017"
+  venv:node_environment: development
+  venv:protocol: http://

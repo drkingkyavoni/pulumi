@@ -1,7 +1,6 @@
 """A Python Pulumi program"""
 
 import pulumi
-import os
 import pulumi_docker as docker
 
 stack = pulumi.get_stack()
@@ -24,4 +23,57 @@ frontend = docker.RemoteImage(
 mongo_image = docker.RemoteImage(
     "mongo_image",
     name="pulumi/tutorial-pulumi-fundamentals-database-local:latest",
+)
+
+# get configuration
+config = pulumi.Config()
+frontend_port = config.require_int("frontend_port")
+backend_port = config.require_int("backend_port")
+mongo_port = config.require_int("mongo_port")
+mongo_host = config.require("mongo_host")
+database = config.require("database")
+node_environment = config.require("node_environment")
+protocol = config.require("protocol")
+
+# Create a Docker network
+network = docker.Network("network", name=f"services_{stack}")
+
+# Create the MongoDB container
+mongo_container = docker.Container(
+    "mongo_container",
+    image=mongo_image.repo_digest,
+    name=f"mongo_{stack}",
+    ports=[docker.ContainerPortArgs(internal=mongo_port, external=mongo_port)],
+    networks_advanced=[
+        docker.ContainerNetworksAdvancedArgs(name=network.name, aliases=["mongo"])
+    ],
+)
+
+# Create the backend container
+backend_container = docker.Container(
+    "backend_container",
+    name=f"backend_{stack}",
+    image=backend.repo_digest,
+    ports=[docker.ContainerPortArgs(internal=backend_port, external=backend_port)],
+    envs=[
+        f"DATABASE_HOST={mongo_host}",
+        f"DATABASE_NAME={database}",
+        f"NODE_ENV={node_environment}",
+    ],
+    networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
+    opts=pulumi.ResourceOptions(depends_on=[mongo_container]),
+)
+
+# Create the frontend container
+frontend_container = docker.Container(
+    "frontend_container",
+    name=f"frontend_{stack}",
+    image=frontend.repo_digest,
+    ports=[docker.ContainerPortArgs(internal=frontend_port, external=frontend_port)],
+    envs=[
+        f"PORT={frontend_port}",
+        f"HTTP_PROXY=backend_{stack}:{backend_port}",
+        f"PROXY_PROTOCOL={protocol}",
+    ],
+    networks_advanced=[docker.ContainerNetworksAdvancedArgs(name=network.name)],
 )
